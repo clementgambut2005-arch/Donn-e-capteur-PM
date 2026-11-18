@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Notre capteur</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -55,7 +56,6 @@
 </div>
 
 <script>
-// ---------- Réglages ----------
 const CLE = "9ab92ba5d9b0e5435e94d50c258b5c6a";
 const DEVICE_ID = "5C:01:3B:F1:53:9C";
 
@@ -67,12 +67,17 @@ const CHAMPS = {
 const graphes = {};
 let enCours = false;
 
-// Récupère les données brutes exactement telles qu'elles sont sur le serveur
 async function chargerMesures(periode) {
-  const params = new URLSearchParams({ key: CLE, start: periode });
+  const params = new URLSearchParams({
+    key: CLE,
+    start: periode,
+    _t: Date.now() // Anti-cache : force une nouvelle requête à chaque cycle
+  });
   if (DEVICE_ID) params.set("device_id", DEVICE_ID);
 
-  const reponse = await fetch("https://api.aircarto.fr/iut-amu/data?" + params);
+  const reponse = await fetch("https://api.aircarto.fr/iut-amu/data?" + params, {
+    cache: "no-store"
+  });
   const json = await reponse.json();
   if (!json.ok) {
     throw new Error(json.message);
@@ -80,7 +85,6 @@ async function chargerMesures(periode) {
   return json.points;
 }
 
-// Construit ou met à jour un graphe à partir des points bruts
 function dessiner(idCanvas, points, champs) {
   const etiquettes = points.map(p => new Date(p.time).toLocaleString("fr-FR",
     { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
@@ -111,7 +115,6 @@ function dessiner(idCanvas, points, champs) {
   return courbes.length;
 }
 
-// Affiche la dernière valeur reçue
 function afficherDerniere(points) {
   const derniere = points[points.length - 1];
   const html = Object.keys(CHAMPS)
@@ -143,9 +146,10 @@ async function rafraichir() {
     const avecCo2 = dessiner("graphe-co2", points, ["co2"]);
     document.getElementById("carte-co2").hidden = (avecCo2 === 0);
 
-    const date = new Date(points[points.length - 1].time).toLocaleString("fr-FR");
+    const dateMesure = new Date(points[points.length - 1].time).toLocaleString("fr-FR");
+    const heureSync = new Date().toLocaleTimeString("fr-FR");
     etat.className = "";
-    etat.textContent = `${points.length} mesures brutes. Dernière mesure : ${date}.`;
+    etat.textContent = `${points.length} points. Dernière mesure : ${dateMesure} | Page actualisée à : ${heureSync}`;
   } catch (erreur) {
     etat.className = "erreur";
     etat.textContent = "Erreur : " + erreur.message;
@@ -156,7 +160,7 @@ async function rafraichir() {
 
 document.getElementById("periode").addEventListener("change", rafraichir);
 rafraichir();
-setInterval(rafraichir, 15 * 1000); // Rafraîchissement automatique toutes les 15 secondes
+setInterval(rafraichir, 15 * 1000);
 </script>
 </body>
 </html>
