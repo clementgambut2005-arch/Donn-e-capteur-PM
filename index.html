@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notre capteur</title>
-<!-- Chart.js : la bibliothèque qui dessine les graphes, chargée depuis un CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   body {
@@ -25,7 +24,7 @@
 <body>
 
 <h1>Notre capteur</h1>
-<p>Mesures envoyées par la carte du groupe au serveur AirCarto.</p>
+<p>Mesures brutes envoyées par la carte du groupe au serveur AirCarto.</p>
 
 <p>
   Période :
@@ -56,73 +55,82 @@
 </div>
 
 <script>
-// ---------- Réglages : à remplacer ----------
-const CLE = "9ab92ba5d9b0e5435e94d50c258b5c6a";   // clé du groupe (32 caractères)
-const DEVICE_ID = "5C:01:3B:F1:53:9C";      // adresse MAC d'une carte, ou "" pour toutes
+// ---------- Réglages ----------
+const CLE = "9ab92ba5d9b0e5435e94d50c258b5c6a";
+const DEVICE_ID = "5C:01:3B:F1:53:9C";
 
-// Une moyenne par intervalle selon la période : assez de points pour une
-// courbe lisible, pas trop pour rester rapide (7 jours en brut = 60 000 points).
-const MOYENNE = { "-6h": "5m", "-24h": "15m", "-7d": "1h" };
-
-// Nom affiché et unité de chaque champ de l'API
 const CHAMPS = {
   pm1: ["PM1", "µg/m³"], pm25: ["PM2.5", "µg/m³"], pm10: ["PM10", "µg/m³"],
   temp: ["Température", "°C"], hum: ["Humidité", "%"], co2: ["CO₂", "ppm"],
 };
 
-const graphes = {};   // les graphes déjà dessinés, à remplacer au rechargement
+const graphes = {};
+let enCours = false;
 
-// Demande les mesures au serveur et renvoie la liste des points.
+// Récupère les données brutes exactement telles qu'elles sont sur le serveur
 async function chargerMesures(periode) {
-  const params = new URLSearchParams({ key: CLE, start: periode, freq: MOYENNE[periode] });
+  const params = new URLSearchParams({ key: CLE, start: periode });
   if (DEVICE_ID) params.set("device_id", DEVICE_ID);
+
   const reponse = await fetch("https://api.aircarto.fr/iut-amu/data?" + params);
   const json = await reponse.json();
   if (!json.ok) {
-    // Le serveur explique toujours l'erreur dans "message"
     throw new Error(json.message);
   }
   return json.points;
 }
 
-// Dessine (ou redessine) un graphe avec une courbe par champ.
+// Construit ou met à jour un graphe à partir des points bruts
 function dessiner(idCanvas, points, champs) {
   const etiquettes = points.map(p => new Date(p.time).toLocaleString("fr-FR",
-    { weekday: "short", hour: "2-digit", minute: "2-digit" }));
+    { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+
   const courbes = champs
-    .filter(c => points.some(p => p[c] !== undefined))   // seulement les champs mesurés
+    .filter(c => points.some(p => p[c] !== undefined))
     .map(c => ({
       label: CHAMPS[c][0],
-      data: points.map(p => p[c] ?? null),               // null = trou dans la courbe
+      data: points.map(p => p[c] ?? null),
       pointRadius: 0,
       borderWidth: 2,
     }));
 
-  if (graphes[idCanvas]) graphes[idCanvas].destroy();
-  graphes[idCanvas] = new Chart(document.getElementById(idCanvas), {
-    type: "line",
-    data: { labels: etiquettes, datasets: courbes },
-    options: { interaction: { mode: "index", intersect: false } },
-  });
+  if (graphes[idCanvas] && graphes[idCanvas].data.datasets.length === courbes.length) {
+    graphes[idCanvas].data.labels = etiquettes;
+    courbes.forEach((courbe, index) => {
+      graphes[idCanvas].data.datasets[index].data = courbe.data;
+    });
+    graphes[idCanvas].update("none");
+  } else {
+    if (graphes[idCanvas]) graphes[idCanvas].destroy();
+    graphes[idCanvas] = new Chart(document.getElementById(idCanvas), {
+      type: "line",
+      data: { labels: etiquettes, datasets: courbes },
+      options: { interaction: { mode: "index", intersect: false } },
+    });
+  }
   return courbes.length;
 }
 
-// Affiche la valeur la plus récente de chaque champ.
+// Affiche la dernière valeur reçue
 function afficherDerniere(points) {
   const derniere = points[points.length - 1];
   const html = Object.keys(CHAMPS)
     .filter(c => derniere[c] !== undefined)
     .map(c => {
       const [nom, unite] = CHAMPS[c];
-      const valeur = derniere[c].toFixed(c === "co2" ? 0 : 1);   // CO2 sans décimale
+      const valeur = derniere[c].toFixed(c === "co2" ? 0 : 1);
       return `<div class="valeur">${nom}<b>${valeur} ${unite}</b></div>`;
     });
   document.getElementById("valeurs").innerHTML = html.join("");
 }
 
 async function rafraichir() {
+  if (enCours) return;
+  enCours = true;
+
   const etat = document.getElementById("etat");
   const periode = document.getElementById("periode").value;
+
   try {
     const points = await chargerMesures(periode);
     if (points.length === 0) {
@@ -133,22 +141,22 @@ async function rafraichir() {
     dessiner("graphe-pm", points, ["pm1", "pm25", "pm10"]);
     dessiner("graphe-meteo", points, ["temp", "hum"]);
     const avecCo2 = dessiner("graphe-co2", points, ["co2"]);
-    // Pas de CO2 sur un NebuleAir : on cache son graphe
     document.getElementById("carte-co2").hidden = (avecCo2 === 0);
 
     const date = new Date(points[points.length - 1].time).toLocaleString("fr-FR");
     etat.className = "";
-    etat.textContent = `${points.length} points, moyenne sur ${MOYENNE[periode]}. `
-                     + `Dernière mesure : ${date}.`;
+    etat.textContent = `${points.length} mesures brutes. Dernière mesure : ${date}.`;
   } catch (erreur) {
     etat.className = "erreur";
     etat.textContent = "Erreur : " + erreur.message;
+  } finally {
+    enCours = false;
   }
 }
 
 document.getElementById("periode").addEventListener("change", rafraichir);
 rafraichir();
-setInterval(rafraichir, 5 * 60 * 1000);   // mise à jour toutes les 5 minutes
+setInterval(rafraichir, 15 * 1000); // Rafraîchissement automatique toutes les 15 secondes
 </script>
 </body>
 </html>
