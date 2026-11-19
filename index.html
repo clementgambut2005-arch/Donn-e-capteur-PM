@@ -4,55 +4,149 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Notre capteur</title>
+<title>CQGV'AIR — Qualité de votre environnement</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
+  :root {
+    --bg: #f1f8f4;
+    --card: #ffffff;
+    --border: #cde3d6;
+    --text: #143624;
+    --muted: #4b705b;
+    --accent: #1b6e42;
+    --accent-soft: #e3f2e9;
+  }
   body {
-    font-family: system-ui, sans-serif; color: #1b2420; background: #f6f7f6;
-    max-width: 900px; margin: 0 auto; padding: 16px;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
   }
-  h1 { margin-bottom: 4px; }
+  .banniere {
+    background: linear-gradient(135deg, #e1f3e8 0%, #f7fcf9 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .banniere h1 {
+    margin: 0 0 6px 0;
+    font-size: 1.75rem;
+    color: var(--accent);
+  }
+  .banniere p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 680px;
+  }
+  .controles {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  select, button {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  select:hover, button:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: var(--accent);
+  }
   .carte {
-    background: #fff; border: 1px solid #d6ddd8; border-radius: 8px;
-    padding: 12px 16px; margin: 16px 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(27, 110, 66, 0.04);
   }
-  #valeurs { display: flex; flex-wrap: wrap; gap: 24px; }
-  .valeur b { display: block; font-size: 1.8rem; }
-  #etat { color: #5a6a60; }
-  #etat.erreur { color: #b3261e; }
+  .grille-graphes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+    gap: 16px;
+  }
+  #valeurs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .valeur {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .valeur.bon { border-left-color: #16a34a; background: #ecfdf3; }
+  .valeur.moyen { border-left-color: #d97706; background: #fffbeb; }
+  .valeur.alerte { border-left-color: #dc2626; background: #fef2f2; }
+  .valeur span { font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+  .valeur b { display: block; font-size: 1.65rem; margin-top: 4px; color: var(--text); }
+  #etat {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 16px 4px;
+  }
+  #etat.erreur { color: #dc2626; font-weight: 500; }
 </style>
 </head>
 <body>
 
-<h1>Notre capteur</h1>
-<p>Mesures brutes envoyées par la carte du groupe au serveur AirCarto.</p>
+<header class="banniere">
+  <div>
+    <h1>Bienvenue sur le site de l'entreprise CQGV'AIR</h1>
+    <p>Découvrez la qualité de votre environnement en temps réel grâce à nos capteurs connectés (particules fines, CO₂, température et humidité).</p>
+  </div>
+  <div class="controles">
+    <select id="periode">
+      <option value="-6h">6 dernières heures</option>
+      <option value="-24h" selected>24 dernières heures</option>
+      <option value="-7d">7 derniers jours</option>
+    </select>
+    <button id="btn-csv">Exporter CSV</button>
+  </div>
+</header>
 
-<p>
-  Période :
-  <select id="periode">
-    <option value="-6h">6 dernières heures</option>
-    <option value="-24h" selected>24 dernières heures</option>
-    <option value="-7d">7 derniers jours</option>
-  </select>
-</p>
-<p id="etat">Chargement…</p>
+<p id="etat">Chargement des capteurs CQGV'AIR…</p>
 
 <div class="carte">
-  <h2>Dernière mesure</h2>
+  <h2>Mesures instantanées de votre environnement</h2>
   <div id="valeurs"></div>
 </div>
 
-<div class="carte">
-  <h2>Particules (µg/m³)</h2>
-  <canvas id="graphe-pm"></canvas>
-</div>
-<div class="carte">
-  <h2>Température (°C) et humidité (%)</h2>
-  <canvas id="graphe-meteo"></canvas>
-</div>
-<div class="carte" id="carte-co2">
-  <h2>CO₂ (ppm)</h2>
-  <canvas id="graphe-co2"></canvas>
+<div class="grille-graphes">
+  <div class="carte">
+    <h2>Particules fines (µg/m³)</h2>
+    <canvas id="graphe-pm"></canvas>
+  </div>
+  <div class="carte" id="carte-co2">
+    <h2>Dioxyde de carbone — CO₂ (ppm) — Échelle 0 à 6000</h2>
+    <canvas id="graphe-co2"></canvas>
+  </div>
+  <div class="carte">
+    <h2>Température (°C) et humidité (%)</h2>
+    <canvas id="graphe-meteo"></canvas>
+  </div>
 </div>
 
 <script>
@@ -60,18 +154,30 @@ const CLE = "9ab92ba5d9b0e5435e94d50c258b5c6a";
 const DEVICE_ID = "5C:01:3B:F1:53:9C";
 
 const CHAMPS = {
-  pm1: ["PM1", "µg/m³"], pm25: ["PM2.5", "µg/m³"], pm10: ["PM10", "µg/m³"],
-  temp: ["Température", "°C"], hum: ["Humidité", "%"], co2: ["CO₂", "ppm"],
+  pm1: ["PM1", "µg/m³", "#0284c7"],
+  pm25: ["PM2.5", "µg/m³", "#d97706"],
+  pm10: ["PM10", "µg/m³", "#e11d48"],
+  temp: ["Température", "°C", "#ea580c"],
+  hum: ["Humidité", "%", "#2563eb"],
+  co2: ["CO₂", "ppm", "#16a34a"],
 };
 
 const graphes = {};
+let derniersPoints = [];
 let enCours = false;
+
+function niveauAlerte(champ, val) {
+  if (champ === "co2") return val < 800 ? "bon" : (val < 1200 ? "moyen" : "alerte");
+  if (champ === "pm25") return val < 15 ? "bon" : (val < 35 ? "moyen" : "alerte");
+  if (champ === "pm10") return val < 45 ? "bon" : (val < 80 ? "moyen" : "alerte");
+  return "";
+}
 
 async function chargerMesures(periode) {
   const params = new URLSearchParams({
     key: CLE,
     start: periode,
-    _t: Date.now() // Anti-cache : force une nouvelle requête à chaque cycle
+    _t: Date.now()
   });
   if (DEVICE_ID) params.set("device_id", DEVICE_ID);
 
@@ -79,13 +185,12 @@ async function chargerMesures(periode) {
     cache: "no-store"
   });
   const json = await reponse.json();
-  if (!json.ok) {
-    throw new Error(json.message);
-  }
+  if (!json.ok) throw new Error(json.message);
   return json.points;
 }
 
-function dessiner(idCanvas, points, champs) {
+// yMax optionnel fixe le plafond de l'axe vertical (ex: 6000 ppm pour le CO2)
+function dessiner(idCanvas, points, champs, yMax = null) {
   const etiquettes = points.map(p => new Date(p.time).toLocaleString("fr-FR",
     { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
 
@@ -94,6 +199,10 @@ function dessiner(idCanvas, points, champs) {
     .map(c => ({
       label: CHAMPS[c][0],
       data: points.map(p => p[c] ?? null),
+      borderColor: CHAMPS[c][2],
+      backgroundColor: CHAMPS[c][2] + "22",
+      fill: champs.length === 1,
+      tension: 0.25,
       pointRadius: 0,
       borderWidth: 2,
     }));
@@ -106,10 +215,25 @@ function dessiner(idCanvas, points, champs) {
     graphes[idCanvas].update("none");
   } else {
     if (graphes[idCanvas]) graphes[idCanvas].destroy();
+
+    const echelleY = {
+      ticks: { color: "#4b705b" },
+      grid: { color: "#cde3d666" },
+      min: 0
+    };
+    if (yMax !== null) echelleY.max = yMax;
+
     graphes[idCanvas] = new Chart(document.getElementById(idCanvas), {
       type: "line",
       data: { labels: etiquettes, datasets: courbes },
-      options: { interaction: { mode: "index", intersect: false } },
+      options: {
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#143624" } } },
+        scales: {
+          x: { ticks: { color: "#4b705b", maxTicksLimit: 8 }, grid: { color: "#cde3d666" } },
+          y: echelleY
+        }
+      },
     });
   }
   return courbes.length;
@@ -122,10 +246,25 @@ function afficherDerniere(points) {
     .map(c => {
       const [nom, unite] = CHAMPS[c];
       const valeur = derniere[c].toFixed(c === "co2" ? 0 : 1);
-      return `<div class="valeur">${nom}<b>${valeur} ${unite}</b></div>`;
+      const classe = niveauAlerte(c, derniere[c]);
+      return `<div class="valeur ${classe}"><span>${nom}</span><b>${valeur} ${unite}</b></div>`;
     });
   document.getElementById("valeurs").innerHTML = html.join("");
 }
+
+document.getElementById("btn-csv").addEventListener("click", () => {
+  if (!derniersPoints.length) return;
+  const colonnes = ["time", "pm1", "pm25", "pm10", "temp", "hum", "co2"];
+  const lignes = [colonnes.join(";")];
+  derniersPoints.forEach(p => {
+    lignes.push(colonnes.map(col => p[col] ?? "").join(";"));
+  });
+  const blob = new Blob([lignes.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(blob);
+  lien.download = `CQGV_AIR_mesures_${new Date().toISOString().slice(0, 10)}.csv`;
+  lien.click();
+});
 
 async function rafraichir() {
   if (enCours) return;
@@ -136,20 +275,22 @@ async function rafraichir() {
 
   try {
     const points = await chargerMesures(periode);
+    derniersPoints = points;
     if (points.length === 0) {
-      etat.textContent = "Aucune mesure sur cette période : la carte envoie-t-elle ?";
+      etat.textContent = "Aucune mesure sur cette période.";
       return;
     }
     afficherDerniere(points);
     dessiner("graphe-pm", points, ["pm1", "pm25", "pm10"]);
     dessiner("graphe-meteo", points, ["temp", "hum"]);
-    const avecCo2 = dessiner("graphe-co2", points, ["co2"]);
+    // Plafonne l'ordonnée du graphe CO2 à 6000 ppm
+    const avecCo2 = dessiner("graphe-co2", points, ["co2"], 6000);
     document.getElementById("carte-co2").hidden = (avecCo2 === 0);
 
     const dateMesure = new Date(points[points.length - 1].time).toLocaleString("fr-FR");
     const heureSync = new Date().toLocaleTimeString("fr-FR");
     etat.className = "";
-    etat.textContent = `${points.length} points. Dernière mesure : ${dateMesure} | Page actualisée à : ${heureSync}`;
+    etat.textContent = `${points.length} mesures brutes • Dernier relevé : ${dateMesure} • Actualisé à ${heureSync}`;
   } catch (erreur) {
     etat.className = "erreur";
     etat.textContent = "Erreur : " + erreur.message;
