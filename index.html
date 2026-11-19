@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>CQGV'AIR — Qualité de votre environnement</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #f1f8f4;
@@ -49,6 +50,7 @@
   }
   .controles {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
   }
@@ -66,6 +68,15 @@
   select:hover, button:hover {
     border-color: var(--accent);
     background: var(--accent-soft);
+  }
+  #btn-xlsx {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+  #btn-xlsx:hover {
+    background: #145432;
+    border-color: #145432;
   }
   h2 {
     margin-top: 0;
@@ -119,10 +130,15 @@
   </div>
   <div class="controles">
     <select id="periode">
-      <option value="-6h">6 dernières heures</option>
-      <option value="-24h" selected>24 dernières heures</option>
-      <option value="-7d">7 derniers jours</option>
+      <option value="-24h" selected>24 heures</option>
+      <option value="-48h">48 heures</option>
+      <option value="-72h">72 heures</option>
+      <option value="-4d">4 jours</option>
+      <option value="-5d">5 jours</option>
+      <option value="-6d">6 jours</option>
+      <option value="-7d">7 jours</option>
     </select>
+    <button id="btn-xlsx">Exporter Excel (.xlsx)</button>
     <button id="btn-csv">Exporter CSV</button>
   </div>
 </header>
@@ -191,8 +207,14 @@ async function chargerMesures(periode) {
 
 // yMax optionnel fixe le plafond de l'axe vertical (ex: 6000 ppm pour le CO2)
 function dessiner(idCanvas, points, champs, yMax = null) {
-  const etiquettes = points.map(p => new Date(p.time).toLocaleString("fr-FR",
-    { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+  const periode = document.getElementById("periode").value;
+  const estMultiJours = periode !== "-24h";
+
+  const formatDate = estMultiJours
+    ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }
+    : { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+
+  const etiquettes = points.map(p => new Date(p.time).toLocaleString("fr-FR", formatDate));
 
   const courbes = champs
     .filter(c => points.some(p => p[c] !== undefined))
@@ -252,6 +274,42 @@ function afficherDerniere(points) {
   document.getElementById("valeurs").innerHTML = html.join("");
 }
 
+// Export au format Excel natif (.xlsx) via SheetJS
+document.getElementById("btn-xlsx").addEventListener("click", () => {
+  if (!derniersPoints.length) return;
+
+  const donneesFormatees = derniersPoints.map(p => ({
+    "Date et heure": new Date(p.time).toLocaleString("fr-FR"),
+    "Horodatage ISO": p.time,
+    "PM1 (µg/m³)": p.pm1 ?? "",
+    "PM2.5 (µg/m³)": p.pm25 ?? "",
+    "PM10 (µg/m³)": p.pm10 ?? "",
+    "Température (°C)": p.temp ?? "",
+    "Humidité (%)": p.hum ?? "",
+    "CO2 (ppm)": p.co2 ?? ""
+  }));
+
+  const feuille = XLSX.utils.json_to_sheet(donneesFormatees);
+  feuille["!cols"] = [
+    { wch: 22 },
+    { wch: 26 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 15 },
+    { wch: 13 }
+  ];
+
+  const classeur = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(classeur, feuille, "Mesures CQGV_AIR");
+
+  const periode = document.getElementById("periode").value.replace("-", "");
+  const dateFichier = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(classeur, `CQGV_AIR_${periode}_${dateFichier}.xlsx`);
+});
+
+// Export au format CSV conservé
 document.getElementById("btn-csv").addEventListener("click", () => {
   if (!derniersPoints.length) return;
   const colonnes = ["time", "pm1", "pm25", "pm10", "temp", "hum", "co2"];
@@ -262,7 +320,8 @@ document.getElementById("btn-csv").addEventListener("click", () => {
   const blob = new Blob([lignes.join("\n")], { type: "text/csv;charset=utf-8;" });
   const lien = document.createElement("a");
   lien.href = URL.createObjectURL(blob);
-  lien.download = `CQGV_AIR_mesures_${new Date().toISOString().slice(0, 10)}.csv`;
+  const periode = document.getElementById("periode").value.replace("-", "");
+  lien.download = `CQGV_AIR_${periode}_${new Date().toISOString().slice(0, 10)}.csv`;
   lien.click();
 });
 
